@@ -5,6 +5,7 @@
 
 # Dependencias y datos locales
 node_modules/
+web/dist/
 uploads/
 
 # Sistema

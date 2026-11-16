@@ -1,9 +1,21 @@
 # Bloque que deploy/remote-setup.sh escribe en /etc/caddy/Caddyfile (referencia)
 elmundodelise.com, www.elmundodelise.com {
 	encode gzip
+	handle /api/* {
+		reverse_proxy localhost:3002
+	}
 	handle_path /uploads/* {
 		root * /var/www/elmundodelise/uploads
 		file_server
 	}
-	reverse_proxy localhost:3002
+	handle /admin* {
+		root * /var/www/elmundodelise/web/dist
+		try_files {path} /admin/index.html
+		file_server
+	}
+	handle {
+		root * /var/www/elmundodelise/web/dist
+		try_files {path} /index.html
+		file_server
+	}
 }

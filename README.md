@@ -2,20 +2,28 @@
 
 La tienda tiene catálogo, ficha de producto, carrito, alta e inicio de sesión de usuario, checkout con **PayPal** o **Bizum**, y área «Mis pedidos». El **backoffice** (`/admin/`) permite gestionar prendas, fotos, tallas, stock, pedidos y categorías.
 
-- **Servidor:** Node.js + Express (`server.js`), conectado a Postgres (Supabase) solo con `DATABASE_URL`.
-- **Usuarios:** autenticación propia. Las contraseñas se guardan con scrypt y la sesión va en una cookie httpOnly; no se usa Supabase Auth ni claves de API.
+- **Frontend:** React + Vite en `web/`. Un mismo build genera dos aplicaciones en `web/dist`:
+  - **Tienda** (`/`): catálogo, carrito, checkout y «Mi cuenta», el perfil del cliente con sus pedidos y sus datos.
+  - **Backoffice** (`/admin/`): aplicación aparte con su propio login. Solo entran las cuentas de administración, y no hay ningún enlace a ella desde la tienda.
+- **API:** Node.js + Express (`server.js`), conectada a Postgres (Supabase) solo con `DATABASE_URL`.
+- **Usuarios:** autenticación propia. Las contraseñas se guardan con scrypt y la sesión va en una cookie httpOnly.
 - **Base de datos:** tablas con prefijo `elise_`, con RLS activado y sin políticas, así que la API pública de Supabase no puede leerlas.
 - **Fotos:** en el disco del VPS, en `/var/www/elmundodelise/uploads/products/`.
+- **En producción:** Caddy sirve `web/dist` como archivos estáticos y pasa a Node solo `/api`.
 
 ```
-server.js              API + servidor web
-sql/schema.sql         tablas elise_* (el despliegue las crea solo)
-public/                tienda (index, producto, carrito, checkout, pedido, cuenta)
-public/admin/          backoffice
-deploy/deploy.sh       despliegue desde el Mac
-deploy/remote-setup.sh configuración en el VPS (lo lanza deploy.sh)
-.env.example           configuración
+server.js                API (Node + Express)
+scripts/create-admin.js  crea cuentas de administración
+sql/schema.sql           tablas elise_* (el despliegue las aplica solo)
+web/                     frontend React + Vite
+  index.html             entrada de la tienda
+  admin/index.html       entrada del backoffice
+  src/shop/              páginas de la tienda
+  src/admin/             páginas del backoffice
+deploy/                  despliegue en el VPS
 ```
+
+**Desarrollo en local:** arranca la API con `npm start` y, en otra terminal, ejecuta `cd web && npm install && npm run dev`. Vite redirige `/api` al puerto 3002.
 
 ---
 
@@ -55,14 +63,17 @@ sudo systemctl status elmundodelise
 sudo journalctl -u elmundodelise -f
 ```
 
-## 3. Hacerte administrador
+## 3. Cuenta de la administradora
 
-1. Regístrate en `https://elmundodelise.com/cuenta.html`.
-2. En el SQL Editor de Supabase, ejecuta:
-   ```sql
-   update public.elise_users set is_admin = true where email = 'tu@email.com';
-   ```
-3. En «Mi cuenta» aparecerá **Ir al backoffice**. También puedes entrar directamente en `/admin/`.
+Las cuentas de administración no se registran desde la tienda: se crean desde el servidor. Desde el Mac:
+
+```bash
+ssh -t deploy@217.160.50.110 'cd /var/www/elmundodelise && node scripts/create-admin.js email@dela-administradora.com'
+```
+
+Te pedirá la contraseña dos veces. Con esa cuenta se entra en **https://elmundodelise.com/admin/**.
+
+Si el email ya existe, el script convierte esa cuenta en administradora y le cambia la contraseña. El mismo comando sirve para restablecerla.
 
 ## 4. Pagos
 

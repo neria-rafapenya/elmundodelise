@@ -20,6 +20,10 @@ fi
 echo "  · Node $(node -v)"
 npm install --omit=dev --no-audit --no-fund --loglevel=error
 
+# Frontend React: compila tienda y backoffice en web/dist
+echo "  · Compilando el frontend (React + Vite)"
+(cd web && npm install --no-audit --no-fund --loglevel=error && npm run build --silent)
+
 # Fotos: legibles por Caddy, escribibles por la app
 mkdir -p uploads/products
 chmod 755 uploads uploads/products
@@ -85,11 +89,23 @@ sys.stdout.write("".join(out).rstrip() + f"""
 
 {domain}, www.{domain} {{
 	encode gzip
+	handle /api/* {{
+		reverse_proxy localhost:{port}
+	}}
 	handle_path /uploads/* {{
 		root * {app}/uploads
 		file_server
 	}}
-	reverse_proxy localhost:{port}
+	handle /admin* {{
+		root * {app}/web/dist
+		try_files {{path}} /admin/index.html
+		file_server
+	}}
+	handle {{
+		root * {app}/web/dist
+		try_files {{path}} /index.html
+		file_server
+	}}
 }}
 """)' "$DOMAIN" "$PORT" "$APP_DIR" > "$TMP"
 sudo cp "$TMP" "$CF"; rm -f "$TMP"

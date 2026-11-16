@@ -53,7 +53,6 @@ app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
@@ -167,7 +166,7 @@ app.post('/api/auth/forgot', rateLimit, wrap(async (req, res) => {
     await mailer.sendMail({
       from: env.SMTP_FROM || env.SMTP_USER, to: email,
       subject: 'Cambia tu contraseña · El mundo de Lise',
-      text: `Hola,\n\nPara elegir una nueva contraseña entra en este enlace (válido 1 hora):\n${PUBLIC_URL}/cuenta.html?reset=${token}\n\nSi no lo has pedido tú, ignora este mensaje.\n\nEl mundo de Lise`,
+      text: `Hola,\n\nPara elegir una nueva contraseña entra en este enlace (válido 1 hora):\n${PUBLIC_URL}/restablecer?token=${token}\n\nSi no lo has pedido tú, ignora este mensaje.\n\nEl mundo de Lise`,
     });
   }
   res.json({ ok: true }); // misma respuesta exista o no la cuenta
@@ -529,6 +528,14 @@ adm.patch('/orders/:id', wrap(async (req, res) => {
 
 app.use('/api/admin', adm);
 app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
+
+// Frontend React (web/dist). En producción lo sirve Caddy; esto es por si se usa Node solo.
+const DIST = path.join(__dirname, 'web', 'dist');
+if (fs.existsSync(DIST)) {
+  app.use(express.static(DIST, { index: false, maxAge: '1h' }));
+  app.get(/^\/admin(\/.*)?$/, (_req, res) => res.sendFile(path.join(DIST, 'admin', 'index.html')));
+  app.get('*', (_req, res) => res.sendFile(path.join(DIST, 'index.html')));
+}
 
 // ---------- errores ----------
 app.use((err, _req, res, _next) => {

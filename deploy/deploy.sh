@@ -34,7 +34,7 @@ echo "→ Preparando $APP_DIR en $TARGET (puede pedirte la contraseña de sudo)"
 echo "→ Subiendo código"
 # --delete no toca lo excluido: uploads/ (fotos) y .env del servidor se conservan
 rsync -az --delete -e "ssh -p $SSH_PORT" \
-  --exclude '.git' --exclude 'node_modules' --exclude 'uploads' --exclude '.env' --exclude '.DS_Store' \
+  --exclude '.git' --exclude 'node_modules' --exclude 'uploads' --exclude '.env' --exclude '.DS_Store' --exclude '_to_delete' --exclude 'web/node_modules' --exclude 'web/dist' \
   ./ "$TARGET:$APP_DIR/"
 scp -q -P "$SSH_PORT" .env "$TARGET:$APP_DIR/.env"   # remote-setup.sh le pone permisos 600
 

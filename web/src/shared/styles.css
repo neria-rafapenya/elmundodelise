@@ -150,3 +150,12 @@ td input, td select { padding: 6px 8px; }
   table { display: block; overflow-x: auto; }
 }
 td input:not([type=number]) { min-width: 72px; }
+
+/* React */
+.check { display: flex; gap: 8px; align-items: flex-start; color: var(--ink); font-size: .9rem; }
+.check input { width: auto; margin-top: 4px; }
+.admin-tabs a { padding: 10px 16px; text-decoration: none; border-bottom: 2px solid transparent; }
+.admin-tabs a.active { border-color: var(--accent); color: var(--accent); }
+.admin-login { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.admin-login .auth-box { margin: 0; width: 100%; }
+nav a.active { color: var(--accent); }
