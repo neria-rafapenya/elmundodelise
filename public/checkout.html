@@ -42,17 +42,16 @@
   <script type="module">
     import { api, renderShell, requireLogin, cart, config, paypalButtons, $, esc, money } from '/js/app.js';
     await renderShell();
-    const session = await requireLogin();
-    if (!session) throw 0;
+    const me = await requireLogin();
+    if (!me) throw 0;
     if (!cart.count()) location.href = '/carrito.html';
 
     if (!config.paypalClientId) { $('#opt-paypal').remove(); $('[value=bizum]').checked = true; }
     if (!config.bizumPhone) $('#opt-bizum').remove();
 
     const form = $('#form');
-    $('#email').value = session.user.email;
-    const me = await api('/me').catch(() => null);
-    const pr = me?.profile || {};
+    $('#email').value = me.email;
+    const pr = me;
     for (const [k, v] of Object.entries({ name: pr.full_name, phone: pr.phone, address: pr.address, postal_code: pr.postal_code, city: pr.city, province: pr.province })) {
       if (v) form.elements[k].value = v;
     }

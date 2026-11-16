@@ -37,7 +37,7 @@
         ${o.tracking ? `<div class="notice ok">Seguimiento del envío: <strong>${esc(o.tracking)}</strong></div>` : ''}
 
         <div class="box summary">
-          ${o.elise_order_items.map((i) => `<div class="r"><span>${i.qty} × ${esc(i.name)} <span class="muted">${esc([i.size, i.color].filter(Boolean).join(' · '))}</span></span><span>${money(i.unit_price_cents * i.qty)}</span></div>`).join('')}
+          ${o.items.map((i) => `<div class="r"><span>${i.qty} × ${esc(i.name)} <span class="muted">${esc([i.size, i.color].filter(Boolean).join(' · '))}</span></span><span>${money(i.unit_price_cents * i.qty)}</span></div>`).join('')}
           <div class="r" style="margin-top:12px"><span>Subtotal</span><span>${money(o.subtotal_cents)}</span></div>
           <div class="r"><span>Envío</span><span>${o.shipping_cents ? money(o.shipping_cents) : 'Gratis'}</span></div>
           <div class="r total"><span>Total</span><span>${money(o.total_cents)}</span></div>

@@ -1,10 +1,5 @@
 // Utilidades compartidas: configuración, sesión, API, carrito y cabecera
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
 export const config = await fetch('/api/config').then((r) => r.json());
-export const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-});
 
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -12,26 +7,26 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export const money = (cents) => (cents / 100).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
 export const params = new URLSearchParams(location.search);
 
-export async function getSession() {
-  const { data } = await supabase.auth.getSession();
-  return data.session;
-}
-
 export async function api(path, { method = 'GET', body, form } = {}) {
-  const session = await getSession();
   const headers = {};
-  if (session) headers.Authorization = `Bearer ${session.access_token}`;
   if (body) headers['Content-Type'] = 'application/json';
-  const r = await fetch(`/api${path}`, { method, headers, body: form || (body ? JSON.stringify(body) : undefined) });
+  const r = await fetch(`/api${path}`, { method, headers, credentials: 'same-origin', body: form || (body ? JSON.stringify(body) : undefined) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error || 'Error'), { status: r.status });
   return j;
 }
 
+// Usuario con sesión iniciada (o null). La sesión va en una cookie httpOnly.
+let _me;
+export async function getUser() {
+  if (_me === undefined) _me = (await api('/session').catch(() => ({}))).user || null;
+  return _me;
+}
+
 export async function requireLogin() {
-  const s = await getSession();
-  if (!s) location.href = `/cuenta.html?next=${encodeURIComponent(location.pathname + location.search)}`;
-  return s;
+  const u = await getUser();
+  if (!u) location.href = `/cuenta.html?next=${encodeURIComponent(location.pathname + location.search)}`;
+  return u;
 }
 
 // ---------- carrito (localStorage: solo variante y cantidad) ----------
@@ -90,7 +85,7 @@ export async function paypalButtons(orderId, selector) {
 
 // ---------- cabecera y pie ----------
 export async function renderShell() {
-  const session = await getSession();
+  const user = await getUser();
   const header = document.createElement('header');
   header.className = 'site-header';
   header.innerHTML = `
@@ -98,7 +93,7 @@ export async function renderShell() {
       <a href="/" class="logo">El mundo <em>de</em> Lise</a>
       <nav>
         <a href="/">Tienda</a>
-        <a href="/cuenta.html">${session ? 'Mi cuenta' : 'Entrar'}</a>
+        <a href="/cuenta.html">${user ? 'Mi cuenta' : 'Entrar'}</a>
         <a href="/carrito.html" class="cart-link" aria-label="Carrito">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
           <span id="cart-count" class="badge" hidden>0</span>

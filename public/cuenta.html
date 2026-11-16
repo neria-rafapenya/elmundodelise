@@ -10,30 +10,29 @@
   <main class="wrap" id="main"></main>
 
   <script type="module">
-    import { api, supabase, renderShell, getSession, toast, $, $$, esc, money, params } from '/js/app.js';
+    import { api, config, renderShell, getUser, toast, $, $$, esc, money, params } from '/js/app.js';
     await renderShell();
     const next = params.get('next');
     const STATUS = { pending_payment: 'Pendiente de pago', pending_bizum: 'Pendiente de Bizum', paid: 'Pagado', preparing: 'En preparación', shipped: 'Enviado', delivered: 'Entregado', cancelled: 'Cancelado' };
+    const done = () => (location.href = next || '/cuenta.html');
 
-    // Enlace de recuperación de contraseña
-    supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') renderNewPassword(); });
-
-    const session = await getSession();
-    if (location.hash.includes('type=recovery')) renderNewPassword();
-    else if (session) renderAccount(session); else renderAuth('login');
+    const user = await getUser();
+    if (params.get('reset')) renderReset(params.get('reset'));
+    else if (user) { if (next) location.href = next; else renderAccount(user); }
+    else renderAuth('login');
 
     function renderAuth(mode) {
       $('#main').innerHTML = `
         <div class="auth-box box">
           <div class="tabs"><button data-m="login" class="${mode === 'login' ? 'active' : ''}">Entrar</button><button data-m="signup" class="${mode === 'signup' ? 'active' : ''}">Crear cuenta</button></div>
           <form id="f" novalidate>
-            ${mode === 'signup' ? '<div class="field"><label>Nombre y apellidos</label><input name="full_name" required autocomplete="name"></div>' : ''}
+            ${mode === 'signup' ? '<div class="field"><label>Nombre y apellidos</label><input name="full_name" autocomplete="name"></div>' : ''}
             <div class="field"><label>Email</label><input name="email" type="email" required autocomplete="email"></div>
             <div class="field"><label>Contraseña</label><input name="password" type="password" required minlength="8" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}"></div>
-            ${mode === 'signup' ? '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);margin-bottom:14px"><input type="checkbox" name="terms" required style="width:auto;margin-top:4px"> <span>Acepto que mis datos se usen para gestionar mis pedidos.</span></label>' : ''}
+            ${mode === 'signup' ? '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);margin-bottom:14px"><input type="checkbox" name="accept" style="width:auto;margin-top:4px"> <span>Acepto que mis datos se usen para gestionar mis pedidos.</span></label>' : ''}
             <p class="error" id="err"></p>
             <button class="btn block">${mode === 'login' ? 'Entrar' : 'Crear cuenta'}</button>
-            ${mode === 'login' ? '<p class="center" style="margin-top:14px"><button type="button" class="link-btn" id="forgot" style="margin:0">¿Has olvidado la contraseña?</button></p>' : ''}
+            ${mode === 'login' && config.passwordReset ? '<p class="center" style="margin-top:14px"><button type="button" class="link-btn" id="forgot" style="margin:0">¿Has olvidado la contraseña?</button></p>' : ''}
           </form>
         </div>`;
       $$('.tabs button').forEach((b) => b.onclick = () => renderAuth(b.dataset.m));
@@ -41,57 +40,35 @@
       $('#forgot')?.addEventListener('click', async () => {
         const email = $('[name=email]').value.trim();
         if (!email) return ($('#err').textContent = 'Escribe tu email y vuelve a pulsar.');
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/cuenta.html` });
-        if (error) $('#err').textContent = error.message; else toast('Te hemos enviado un email para cambiar la contraseña');
+        try { await api('/auth/forgot', { method: 'POST', body: { email } }); toast('Si el email existe, te hemos enviado un enlace'); }
+        catch (e) { $('#err').textContent = e.message; }
       });
 
       $('#f').addEventListener('submit', async (e) => {
         e.preventDefault();
         const f = Object.fromEntries(new FormData(e.target));
         $('#err').textContent = '';
-        if (mode === 'signup') {
-          if (!f.terms) return ($('#err').textContent = 'Debes aceptar el uso de tus datos.');
-          if ((f.password || '').length < 8) return ($('#err').textContent = 'La contraseña debe tener al menos 8 caracteres.');
-          const { data, error } = await supabase.auth.signUp({
-            email: f.email, password: f.password,
-            options: { data: { full_name: f.full_name, app: 'elise' }, emailRedirectTo: `${location.origin}/cuenta.html` },
-          });
-          if (error) return ($('#err').textContent = traducir(error.message));
-          if (data.session) { await api('/me', { method: 'PUT', body: { full_name: f.full_name } }); return done(); }
-          $('#main').innerHTML = `<div class="auth-box box center"><h2>Revisa tu correo</h2><p>Te hemos enviado un enlace a <strong>${esc(f.email)}</strong> para activar tu cuenta.</p></div>`;
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({ email: f.email, password: f.password });
-          if (error) return ($('#err').textContent = traducir(error.message));
+        const btn = e.target.querySelector('.btn'); btn.disabled = true;
+        try {
+          if (mode === 'signup') await api('/auth/register', { method: 'POST', body: { ...f, accept: !!f.accept } });
+          else await api('/auth/login', { method: 'POST', body: f });
           done();
-        }
+        } catch (err) { $('#err').textContent = err.message; btn.disabled = false; }
       });
     }
 
-    function done() { location.href = next || '/cuenta.html'; }
-
-    function traducir(m) {
-      if (/Invalid login/i.test(m)) return 'Email o contraseña incorrectos.';
-      if (/Email not confirmed/i.test(m)) return 'Confirma tu email antes de entrar (revisa tu bandeja de entrada).';
-      if (/already registered/i.test(m)) return 'Ya existe una cuenta con ese email. Entra con tu contraseña.';
-      return m;
-    }
-
-    function renderNewPassword() {
+    function renderReset(token) {
       $('#main').innerHTML = `<div class="auth-box box"><h2>Nueva contraseña</h2>
-        <form id="np"><div class="field"><input name="password" type="password" minlength="8" required placeholder="Mínimo 8 caracteres"></div><p class="error" id="err"></p><button class="btn block">Guardar</button></form></div>`;
+        <form id="np"><div class="field"><input name="password" type="password" minlength="8" required placeholder="Mínimo 8 caracteres" autocomplete="new-password"></div>
+        <p class="error" id="err"></p><button class="btn block">Guardar</button></form></div>`;
       $('#np').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const { error } = await supabase.auth.updateUser({ password: e.target.password.value });
-        if (error) $('#err').textContent = error.message; else { toast('Contraseña actualizada'); setTimeout(() => location.href = '/cuenta.html', 1000); }
+        try { await api('/auth/reset', { method: 'POST', body: { token, password: e.target.password.value } }); toast('Contraseña actualizada'); setTimeout(() => location.href = '/cuenta.html', 900); }
+        catch (err) { $('#err').textContent = err.message; }
       });
     }
 
-    async function renderAccount(session) {
-      const me = await api('/me');
-      // Primera vez en la tienda: crea el perfil con el nombre del registro
-      if (!me.profile) me.profile = await api('/me', { method: 'PUT', body: { full_name: session.user.user_metadata?.full_name || '' } });
-      if (next) return (location.href = next);
-      const p = me.profile;
+    async function renderAccount(p) {
       const orders = await api('/me/orders');
       $('#main').innerHTML = `
         <div class="two-col">
@@ -102,14 +79,14 @@
               <div class="order">
                 <a href="/pedido.html?id=${o.id}"><strong>Pedido nº ${o.number}</strong></a>
                 <span class="status ${o.status}">${STATUS[o.status]}</span>
-                <div class="muted" style="font-size:.9rem">${new Date(o.created_at).toLocaleDateString('es-ES')} · ${money(o.total_cents)} · ${o.elise_order_items.reduce((s, i) => s + i.qty, 0)} artículo(s)</div>
+                <div class="muted" style="font-size:.9rem">${new Date(o.created_at).toLocaleDateString('es-ES')} · ${money(o.total_cents)} · ${o.items.reduce((s, i) => s + i.qty, 0)} artículo(s)</div>
               </div>`).join('') : '<p class="muted">Todavía no has hecho ningún pedido. <a href="/">Ver la tienda</a></p>'}
             ${p.is_admin ? '<p style="margin-top:28px"><a class="btn ghost" href="/admin/">Ir al backoffice</a></p>' : ''}
           </section>
-          <aside class="box">
-            <h2>Mis datos</h2>
-            <form id="pf">
-              <div class="field"><label>Email</label><input value="${esc(me.email)}" disabled></div>
+          <aside class="stack">
+            <form class="box" id="pf">
+              <h2>Mis datos</h2>
+              <div class="field"><label>Email</label><input value="${esc(p.email)}" disabled></div>
               <div class="field"><label>Nombre y apellidos</label><input name="full_name" value="${esc(p.full_name || '')}"></div>
               <div class="field"><label>Teléfono</label><input name="phone" value="${esc(p.phone || '')}"></div>
               <div class="field"><label>Dirección</label><input name="address" value="${esc(p.address || '')}"></div>
@@ -120,7 +97,13 @@
               <div class="field"><label>Provincia</label><input name="province" value="${esc(p.province || '')}"></div>
               <button class="btn block">Guardar</button>
             </form>
-            <button class="btn ghost block" id="logout" style="margin-top:12px">Cerrar sesión</button>
+            <form class="box" id="pw">
+              <h2>Cambiar contraseña</h2>
+              <div class="field"><label>Contraseña actual</label><input name="current" type="password" autocomplete="current-password"></div>
+              <div class="field"><label>Nueva contraseña</label><input name="password" type="password" minlength="8" autocomplete="new-password"></div>
+              <button class="btn ghost block">Cambiar</button>
+            </form>
+            <button class="btn ghost block" id="logout">Cerrar sesión</button>
           </aside>
         </div>`;
       $('#pf').addEventListener('submit', async (e) => {
@@ -128,7 +111,12 @@
         try { await api('/me', { method: 'PUT', body: Object.fromEntries(new FormData(e.target)) }); toast('Datos guardados'); }
         catch (err) { toast(err.message, 'err'); }
       });
-      $('#logout').onclick = async () => { await supabase.auth.signOut(); location.href = '/'; };
+      $('#pw').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try { await api('/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Contraseña cambiada'); e.target.reset(); }
+        catch (err) { toast(err.message, 'err'); }
+      });
+      $('#logout').onclick = async () => { await api('/auth/logout', { method: 'POST' }); location.href = '/'; };
     }
   </script>
 </body>

@@ -36,6 +36,7 @@ nav { display: flex; gap: 22px; align-items: center; }
 nav a { text-decoration: none; font-size: .95rem; }
 nav a:hover { color: var(--accent); }
 .cart-link { position: relative; display: inline-flex; }
+.badge[hidden] { display: none; }
 .badge { position: absolute; top: -6px; right: -10px; background: var(--accent); color: #fff; font-size: .7rem; border-radius: 99px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 5px; }
 .site-footer { border-top: 1px solid var(--line); padding: 28px 0; color: var(--muted); font-size: .85rem; margin-top: 60px; }
 

@@ -1,13 +1,16 @@
 -- El mundo de Lise · esquema de la tienda (prefijo elise_)
 -- Ejecutar en Supabase → SQL Editor. Es idempotente: se puede lanzar varias veces.
--- Todas las tablas tienen RLS activado y SIN políticas: solo el servidor (service_role)
--- puede leer y escribir. El navegador nunca accede directamente a estas tablas.
+-- Usuarios y sesiones propios (sin Supabase Auth). El servidor se conecta con DATABASE_URL.
+-- Todas las tablas tienen RLS activado y SIN políticas: la API pública de Supabase
+-- (anon/authenticated) no puede leerlas; solo la conexión directa del servidor.
 
 
--- Perfiles de cliente (1:1 con auth.users, solo para usuarios de la tienda)
-create table if not exists public.elise_profiles (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  full_name   text,
+-- Clientes y administradores de la tienda
+create table if not exists public.elise_users (
+  id            uuid primary key default gen_random_uuid(),
+  email         text not null unique check (email = lower(email)),
+  password_hash text not null,
+  full_name     text,
   phone       text,
   address     text,
   postal_code text,
@@ -16,6 +19,22 @@ create table if not exists public.elise_profiles (
   is_admin    boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
+);
+
+-- Sesiones de login (cookie). Se guarda solo el hash del token.
+create table if not exists public.elise_sessions (
+  token_hash  text primary key,
+  user_id     uuid not null references public.elise_users(id) on delete cascade,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+
+-- Recuperación de contraseña (token de un solo uso, solo el hash)
+create table if not exists public.elise_password_resets (
+  token_hash  text primary key,
+  user_id     uuid not null references public.elise_users(id) on delete cascade,
+  expires_at  timestamptz not null,
+  used_at     timestamptz
 );
 
 create table if not exists public.elise_categories (
@@ -63,7 +82,7 @@ create sequence if not exists public.elise_order_number_seq start 1001;
 create table if not exists public.elise_orders (
   id               uuid primary key default gen_random_uuid(),
   number           bigint not null unique default nextval('public.elise_order_number_seq'),
-  user_id          uuid not null references auth.users(id),
+  user_id          uuid not null references public.elise_users(id),
   status           text not null default 'pending_payment'
                    check (status in ('pending_payment','pending_bizum','paid','preparing','shipped','delivered','cancelled')),
   payment_method   text not null check (payment_method in ('paypal','bizum')),
@@ -101,9 +120,12 @@ create index if not exists elise_images_product_idx    on public.elise_product_i
 create index if not exists elise_variants_product_idx  on public.elise_product_variants(product_id);
 create index if not exists elise_orders_user_idx       on public.elise_orders(user_id, created_at desc);
 create index if not exists elise_items_order_idx       on public.elise_order_items(order_id);
+create index if not exists elise_sessions_user_idx     on public.elise_sessions(user_id);
 
--- RLS activado sin políticas → nadie salvo service_role
-alter table public.elise_profiles         enable row level security;
+-- RLS activado sin políticas → la API pública de Supabase no ve nada
+alter table public.elise_users            enable row level security;
+alter table public.elise_sessions         enable row level security;
+alter table public.elise_password_resets  enable row level security;
 alter table public.elise_categories       enable row level security;
 alter table public.elise_products         enable row level security;
 alter table public.elise_product_images   enable row level security;
@@ -141,8 +163,12 @@ begin
 end;
 $$;
 
-revoke all on function public.elise_mark_paid(uuid, text) from public, anon, authenticated;
-grant execute on function public.elise_mark_paid(uuid, text) to service_role;
+revoke all on function public.elise_mark_paid(uuid, text) from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'revoke all on function public.elise_mark_paid(uuid, text) from anon, authenticated';
+  end if;
+end $$;
 
 -- Categorías de ejemplo (puedes borrarlas)
 insert into public.elise_categories (name, slug, sort) values
@@ -150,5 +176,4 @@ insert into public.elise_categories (name, slug, sort) values
 on conflict (slug) do nothing;
 
 -- Para hacerte administrador, después de registrarte en la tienda:
--- update public.elise_profiles set is_admin = true
---  where id = (select id from auth.users where email = 'TU_EMAIL');
+-- update public.elise_users set is_admin = true where email = 'tu@email.com';

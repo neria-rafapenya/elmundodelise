@@ -21,9 +21,9 @@
   <script type="module">
     import { api, renderShell, requireLogin, toast, $, $$, esc, money } from '/js/app.js';
     await renderShell();
-    if (!(await requireLogin())) throw 0;
-    const me = await api('/me');
-    if (!me.profile?.is_admin) { $('#view').innerHTML = '<p class="error">Tu usuario no es administrador.</p>'; throw 0; }
+    const me = await requireLogin();
+    if (!me) throw 0;
+    if (!me.is_admin) { $('#view').innerHTML = '<p class="error">Tu usuario no es administrador.</p>'; throw 0; }
 
     const STATUS = { pending_payment: 'Pendiente de pago', pending_bizum: 'Pendiente de Bizum', paid: 'Pagado', preparing: 'En preparación', shipped: 'Enviado', delivered: 'Entregado', cancelled: 'Cancelado' };
     let categories = [];
@@ -187,7 +187,7 @@
           <td>${new Date(o.created_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}</td>
           <td>${esc(o.ship_name)}<div class="muted" style="font-size:.8rem">${esc(o.email || '')}${o.ship_phone ? ' · ' + esc(o.ship_phone) : ''}<br>${esc(o.ship_address)}, ${esc(o.ship_postal_code)} ${esc(o.ship_city)}</div>
             ${o.notes ? `<div style="font-size:.8rem;color:var(--warn)">📝 ${esc(o.notes)}</div>` : ''}</td>
-          <td style="font-size:.85rem">${o.elise_order_items.map((i) => `${i.qty}× ${esc(i.name)} ${esc(i.size || '')}`).join('<br>')}</td>
+          <td style="font-size:.85rem">${o.items.map((i) => `${i.qty}× ${esc(i.name)} ${esc(i.size || '')}`).join('<br>')}</td>
           <td>${money(o.total_cents)}</td>
           <td>${o.payment_method === 'bizum' ? 'Bizum' : 'PayPal'}</td>
           <td><select data-o="${o.id}">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === o.status ? 'selected' : ''}>${v}</option>`).join('')}</select>

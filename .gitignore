@@ -10,3 +10,4 @@ uploads/
 # Sistema
 .DS_Store
 *.log
+_to_delete/

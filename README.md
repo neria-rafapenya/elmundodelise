@@ -2,76 +2,65 @@
 
 La tienda tiene catálogo, ficha de producto, carrito, alta e inicio de sesión de usuario, checkout con **PayPal** o **Bizum**, y área «Mis pedidos». El **backoffice** (`/admin/`) permite gestionar prendas, fotos, tallas, stock, pedidos y categorías.
 
-- **Servidor:** Node.js + Express (`server.js`).
-- **Base de datos:** Supabase, en tablas con prefijo `elise_`. Solo el servidor accede a ellas (RLS activado sin políticas).
-- **Usuarios:** Supabase Auth.
+- **Servidor:** Node.js + Express (`server.js`), conectado a Postgres (Supabase) solo con `DATABASE_URL`.
+- **Usuarios:** autenticación propia. Las contraseñas se guardan con scrypt y la sesión va en una cookie httpOnly; no se usa Supabase Auth ni claves de API.
+- **Base de datos:** tablas con prefijo `elise_`, con RLS activado y sin políticas, así que la API pública de Supabase no puede leerlas.
 - **Fotos:** en el disco del VPS, en `/var/www/elmundodelise/uploads/products/`.
 
 ```
 server.js              API + servidor web
-sql/schema.sql         tablas elise_* (ejecutar en Supabase)
+sql/schema.sql         tablas elise_* (el despliegue las crea solo)
 public/                tienda (index, producto, carrito, checkout, pedido, cuenta)
 public/admin/          backoffice
-deploy/                servicio systemd y bloque de Caddy
+deploy/deploy.sh       despliegue desde el Mac
+deploy/remote-setup.sh configuración en el VPS (lo lanza deploy.sh)
 .env.example           configuración
 ```
 
 ---
 
-## 1. Supabase
+## 1. Configuración
 
-1. **Crea las tablas.** En **SQL Editor**, pega el contenido de `sql/schema.sql` y pulsa **Run**. Puedes ejecutarlo más de una vez sin problemas.
-2. **Configura las URLs de autenticación.** En **Authentication → URL Configuration**, añade en *Redirect URLs*:
-   - `https://elmundodelise.com/cuenta.html`
-   - `https://www.elmundodelise.com/cuenta.html`
-3. **Copia las claves.** En **Project Settings → API**, copia `URL`, `anon` y `service_role` para el `.env`.
+Copia `.env.example` a `.env` y rellena como mínimo `DATABASE_URL` y `BIZUM_PHONE`. El `.env` nunca se sube a git.
 
-> **Usuarios compartidos.** Como es el mismo proyecto de Supabase que tus otras apps, los usuarios (`auth.users`) son comunes a todas: alguien registrado en otra app puede entrar aquí con la misma contraseña. Los datos de la tienda van aparte, en `elise_profiles`. Los emails de confirmación también son los mismos del proyecto (Authentication → Email Templates).
+## 2. Despliegue en el VPS de IONOS
 
-## 2. Despliegue en el VPS (217.160.50.110)
+| | |
+|---|---|
+| Dominios | elmundodelise.com y www.elmundodelise.com (registro A → 217.160.50.110) |
+| SSH | usuario de despliegue (no root) con sudo, puerto 22 |
+| Ruta | `/var/www/elmundodelise` |
+| Proxy | Caddy, con certificado HTTPS automático |
 
-Desde el Mac, en la carpeta del proyecto:
-
-```bash
-scp -r elmundodelise root@217.160.50.110:/opt/
-```
-
-En el servidor:
+Desde la raíz del repo, en el Mac:
 
 ```bash
-ssh root@217.160.50.110
-
-# Node 20 o superior (comprueba con: node -v)
-cd /opt/elmundodelise
-npm install --omit=dev
-cp .env.example .env && nano .env        # rellena Supabase, PayPal, Bizum…
-
-mkdir -p /var/www/elmundodelise/uploads/products
-chown -R www-data:www-data /var/www/elmundodelise/uploads
-chown www-data:www-data .env && chmod 600 .env
-
-# Servicio
-cp deploy/elmundodelise.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now elmundodelise
-systemctl status elmundodelise --no-pager
-
-# Caddy: sustituye el bloque de elmundodelise.com por el de deploy/Caddyfile.snippet
-nano /etc/caddy/Caddyfile
-caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+DEPLOY_USER=tu_usuario bash deploy/deploy.sh
 ```
 
-Si el puerto 3002 está ocupado (`ss -ltnp | grep 3002`), cambia `PORT` en `.env` y en el Caddyfile.
+El script:
+- Sube el código con rsync, sin `.git`, `node_modules`, `.env` ni `uploads`. Las fotos del servidor no se tocan.
+- Copia el `.env` aparte, con permisos 600.
+- Instala Node 22 y `psql` si faltan, y las dependencias.
+- Aplica `sql/schema.sql` en Supabase. Es idempotente.
+- Crea el servicio systemd `elmundodelise`, que corre con el usuario de despliegue en el puerto 3002.
+- Sustituye el bloque de `elmundodelise.com` en `/etc/caddy/Caddyfile`. Antes guarda una copia y, si no valida, la restaura.
 
-**Para actualizar la tienda más adelante:** sube los archivos de nuevo y ejecuta `systemctl restart elmundodelise`. Las fotos de `/var/www/elmundodelise/uploads` no se tocan.
+Puede pedirte la contraseña de sudo. Para actualizar la tienda, vuelve a lanzar el mismo comando.
+
+Comandos útiles en el VPS:
+
+```bash
+sudo systemctl status elmundodelise
+sudo journalctl -u elmundodelise -f
+```
 
 ## 3. Hacerte administrador
 
 1. Regístrate en `https://elmundodelise.com/cuenta.html`.
 2. En el SQL Editor de Supabase, ejecuta:
    ```sql
-   update public.elise_profiles set is_admin = true
-    where id = (select id from auth.users where email = 'TU_EMAIL');
+   update public.elise_users set is_admin = true where email = 'tu@email.com';
    ```
 3. En «Mi cuenta» aparecerá **Ir al backoffice**. También puedes entrar directamente en `/admin/`.
 
@@ -94,13 +83,14 @@ Si el puerto 3002 está ocupado (`ss -ltnp | grep 3002`), cambia `PORT` en `.env
 
 ## 5. Envío (pendiente de transportista)
 
-- `SHIPPING_CENTS` fija un coste único: por ejemplo, `495` son 4,95 €.
-- `FREE_SHIPPING_FROM_CENTS` activa el envío gratis desde un importe.
+- `SHIPPING_EUR` fija un coste único en euros: por ejemplo, `4,95`.
+- `FREE_SHIPPING_FROM_EUR` activa el envío gratis desde un importe en euros: por ejemplo, `50`.
+- La moneda de la tienda es el euro (EUR) en precios, carrito y PayPal.
 - En cada pedido puedes guardar el **nº de seguimiento**, y el cliente lo ve en su pedido.
 - Cuando contrates el transporte, se puede integrar su API (etiquetas y tarifas) en `server.js`.
 
 ## 6. Pendiente antes de abrir al público
 
 - Textos legales: aviso legal, política de privacidad, cookies, y condiciones de venta y devoluciones (obligatorias en venta online en España).
-- Emails de confirmación de pedido. Ahora el cliente lo ve en «Mis pedidos». Se pueden enviar con el SMTP de IONOS.
+- Correo: si rellenas `SMTP_*` en el `.env` (por ejemplo, el buzón de IONOS), se activa «¿Has olvidado la contraseña?». Los emails de confirmación de pedido se pueden añadir con el mismo SMTP.
 - Logo y fotos reales.
