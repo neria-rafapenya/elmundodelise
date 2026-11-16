@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Despliega El mundo de Lise en el VPS de IONOS desde el Mac.
+# Despliega El Mundo de Élise en el VPS de IONOS desde el Mac.
 #
 #   DEPLOY_USER=tu_usuario bash deploy/deploy.sh
 #

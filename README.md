@@ -1,4 +1,4 @@
-# El mundo de Lise · Tienda online
+# El Mundo de Élise · Tienda online
 
 La tienda tiene catálogo, ficha de producto, carrito, alta e inicio de sesión de usuario, checkout con **PayPal** o **Bizum**, y área «Mis pedidos». El **backoffice** (`/admin/`) permite gestionar prendas, fotos, tallas, stock, pedidos y categorías.
 

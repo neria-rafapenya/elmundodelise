@@ -16,7 +16,7 @@ export default function Product() {
     setP(undefined); setImg(0); setSelected(null);
     api(`/products/${encodeURIComponent(slug)}`).then((x) => {
       setP(x);
-      document.title = `${x.name} · El mundo de Lise`;
+      document.title = `${x.name} · El Mundo de Élise`;
       const avail = x.variants.filter((v) => v.stock > 0);
       if (x.variants.length === 1 && avail.length === 1) setSelected(avail[0].id);
     }).catch(() => setP(null));

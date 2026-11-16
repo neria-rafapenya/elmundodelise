@@ -38,7 +38,7 @@ psql "$DBURL" -v ON_ERROR_STOP=1 -q -f sql/schema.sql
 NODE_BIN=$(command -v node)
 sudo tee /etc/systemd/system/elmundodelise.service >/dev/null <<UNIT
 [Unit]
-Description=Tienda El mundo de Lise
+Description=Tienda El Mundo de Élise
 After=network.target
 
 [Service]

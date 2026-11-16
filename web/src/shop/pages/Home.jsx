@@ -19,7 +19,7 @@ export default function Home() {
   return (
     <div className="wrap">
       <section className="hero">
-        <h1>El mundo de Lise</h1>
+        <h1>El Mundo de Élise</h1>
         <p>Prendas escogidas con cariño. Envío a toda España.</p>
       </section>
       <div className="filters">

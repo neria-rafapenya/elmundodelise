@@ -19,7 +19,7 @@ function Header() {
   return (
     <header className="site-header">
       <div className="wrap header-inner">
-        <Link to="/" className="logo">El mundo <em>de</em> Lise</Link>
+        <Link to="/" className="logo">El Mundo <em>de</em> Élise</Link>
         <nav>
           <NavLink to="/" end>Tienda</NavLink>
           <NavLink to={user ? '/cuenta' : '/entrar'}>{user ? 'Mi cuenta' : 'Entrar'}</NavLink>
@@ -57,7 +57,7 @@ function App() {
           <Route path="*" element={<div className="wrap center" style={{ padding: 60 }}><h1>Página no encontrada</h1><Link to="/">Volver a la tienda</Link></div>} />
         </Routes>
       </main>
-      <footer className="site-footer"><div className="wrap">© {new Date().getFullYear()} El mundo de Lise · Pago seguro con PayPal o Bizum</div></footer>
+      <footer className="site-footer"><div className="wrap">© {new Date().getFullYear()} El Mundo de Élise · Pago seguro con PayPal o Bizum</div></footer>
     </>
   );
 }

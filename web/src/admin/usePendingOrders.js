@@ -34,9 +34,9 @@ export default function usePendingOrders(onNew) {
     };
   }, []);
 
-  // Título de la pestaña: "(3) Backoffice · El mundo de Lise"
+  // Título de la pestaña: "(3) Backoffice · El Mundo de Élise"
   useEffect(() => {
-    document.title = `${count ? `(${count}) ` : ''}Backoffice · El mundo de Lise`;
+    document.title = `${count ? `(${count}) ` : ''}Backoffice · El Mundo de Élise`;
   }, [count]);
 
   return count;

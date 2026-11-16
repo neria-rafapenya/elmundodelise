@@ -1,4 +1,4 @@
-// Backoffice de El mundo de Lise: aplicación separada de la tienda, solo para administración
+// Backoffice de El Mundo de Élise: aplicación separada de la tienda, solo para administración
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom';
@@ -29,7 +29,7 @@ function AdminLogin({ onLogin }) {
   return (
     <div className="admin-login">
       <form className="auth-box box" onSubmit={submit}>
-        <p className="logo" style={{ textAlign: 'center', marginBottom: 6 }}>El mundo <em>de</em> Lise</p>
+        <p className="logo" style={{ textAlign: 'center', marginBottom: 6 }}>El Mundo <em>de</em> Élise</p>
         <p className="muted center" style={{ marginTop: 0 }}>Backoffice</p>
         <div className="field"><label>Email</label><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} autoComplete="username" /></div>
         <div className="field"><label>Contraseña</label><input type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="current-password" /></div>
@@ -53,7 +53,7 @@ function Backoffice({ user, onLogout }) {
     <>
       <header className="site-header">
         <div className="wrap header-inner">
-          <span className="logo">El mundo <em>de</em> Lise <small className="muted" style={{ fontFamily: 'var(--sans)', fontSize: '.8rem' }}>backoffice</small></span>
+          <span className="logo">El Mundo <em>de</em> Élise <small className="muted" style={{ fontFamily: 'var(--sans)', fontSize: '.8rem' }}>backoffice</small></span>
           <nav>
             <a href="/" target="_blank" rel="noreferrer">Ver tienda ↗</a>
             <span className="muted" style={{ fontSize: '.85rem' }}>{user.email}</span>

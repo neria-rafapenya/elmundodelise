@@ -1,4 +1,4 @@
-// El mundo de Lise · servidor de la tienda
+// El Mundo de Élise · servidor de la tienda
 // Postgres directo (DATABASE_URL) con usuarios y sesiones propios. Sin Supabase Auth ni claves de API.
 import 'dotenv/config';
 import express from 'express';
@@ -165,8 +165,8 @@ app.post('/api/auth/forgot', rateLimit, wrap(async (req, res) => {
     await q(`insert into elise_password_resets (token_hash, user_id, expires_at) values ($1, $2, now() + interval '1 hour')`, [sha256(token), user.id]);
     await mailer.sendMail({
       from: env.SMTP_FROM || env.SMTP_USER, to: email,
-      subject: 'Cambia tu contraseña · El mundo de Lise',
-      text: `Hola,\n\nPara elegir una nueva contraseña entra en este enlace (válido 1 hora):\n${PUBLIC_URL}/restablecer?token=${token}\n\nSi no lo has pedido tú, ignora este mensaje.\n\nEl mundo de Lise`,
+      subject: 'Cambia tu contraseña · El Mundo de Élise',
+      text: `Hola,\n\nPara elegir una nueva contraseña entra en este enlace (válido 1 hora):\n${PUBLIC_URL}/restablecer?token=${token}\n\nSi no lo has pedido tú, ignora este mensaje.\n\nEl Mundo de Élise`,
     });
   }
   res.json({ ok: true }); // misma respuesta exista o no la cuenta
@@ -356,10 +356,10 @@ app.post('/api/orders/:id/paypal', auth, wrap(async (req, res) => {
     body: JSON.stringify({
       intent: 'CAPTURE',
       purchase_units: [{
-        reference_id: o.id, custom_id: o.id, description: `Pedido ${o.number} · El mundo de Lise`,
+        reference_id: o.id, custom_id: o.id, description: `Pedido ${o.number} · El Mundo de Élise`,
         amount: { currency_code: CURRENCY, value: (o.total_cents / 100).toFixed(2) },
       }],
-      application_context: { shipping_preference: 'NO_SHIPPING', brand_name: 'El mundo de Lise' },
+      application_context: { shipping_preference: 'NO_SHIPPING', brand_name: 'El Mundo de Élise' },
     }),
   });
   const j = await r.json();
@@ -556,4 +556,4 @@ app.use((err, _req, res, _next) => {
 // Limpieza diaria de sesiones caducadas
 setInterval(() => q('delete from elise_sessions where expires_at < now()').catch(() => {}), 24 * 3600 * 1000).unref();
 
-app.listen(PORT, '127.0.0.1', () => console.log(`El mundo de Lise escuchando en http://127.0.0.1:${PORT}`));
+app.listen(PORT, '127.0.0.1', () => console.log(`El Mundo de Élise escuchando en http://127.0.0.1:${PORT}`));

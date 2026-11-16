@@ -1,4 +1,4 @@
--- El mundo de Lise · esquema de la tienda (prefijo elise_)
+-- El Mundo de Élise · esquema de la tienda (prefijo elise_)
 -- Ejecutar en Supabase → SQL Editor. Es idempotente: se puede lanzar varias veces.
 -- Usuarios y sesiones propios (sin Supabase Auth). El servidor se conecta con DATABASE_URL.
 -- Todas las tablas tienen RLS activado y SIN políticas: la API pública de Supabase
