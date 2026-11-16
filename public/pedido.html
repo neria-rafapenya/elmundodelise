@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tu pedido · El mundo de Lise</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="wrap" style="max-width:720px;padding-top:36px" id="main"><p class="muted">Cargando…</p></main>
+
+  <script type="module">
+    import { api, renderShell, requireLogin, paypalButtons, config, $, esc, money, params } from '/js/app.js';
+    await renderShell();
+    if (!(await requireLogin())) throw 0;
+
+    const STATUS = { pending_payment: 'Pendiente de pago', pending_bizum: 'Pendiente de Bizum', paid: 'Pagado', preparing: 'En preparación', shipped: 'Enviado', delivered: 'Entregado', cancelled: 'Cancelado' };
+    let o;
+    try { o = await api(`/orders/${encodeURIComponent(params.get('id') || '')}`); }
+    catch { $('#main').innerHTML = '<p>Pedido no encontrado. <a href="/cuenta.html">Ver mis pedidos</a></p>'; throw 0; }
+
+    $('#main').innerHTML = `
+      <div class="stack">
+        ${params.get('ok') ? '<div class="notice ok"><strong>¡Gracias por tu compra!</strong> Hemos recibido el pago y te avisaremos cuando enviemos el pedido.</div>' : ''}
+        <h1>Pedido nº ${o.number}</h1>
+        <p><span class="status ${o.status}">${STATUS[o.status]}</span> <span class="muted">· ${new Date(o.created_at).toLocaleString('es-ES')}</span></p>
+
+        ${o.status === 'pending_bizum' ? `
+          <div class="notice">
+            <strong>Para completar tu pedido, haz un Bizum:</strong><br>
+            Teléfono: <strong>${esc(config.bizumPhone || '')}</strong><br>
+            Importe: <strong>${money(o.total_cents)}</strong><br>
+            Concepto: <strong>Pedido ${o.number}</strong><br>
+            <span class="muted">Lo prepararemos en cuanto confirmemos el pago.</span>
+          </div>` : ''}
+        ${o.status === 'pending_payment' && o.payment_method === 'paypal' ? '<div class="box"><p>Este pedido está pendiente de pago.</p><div id="pp"></div></div>' : ''}
+        ${o.tracking ? `<div class="notice ok">Seguimiento del envío: <strong>${esc(o.tracking)}</strong></div>` : ''}
+
+        <div class="box summary">
+          ${o.elise_order_items.map((i) => `<div class="r"><span>${i.qty} × ${esc(i.name)} <span class="muted">${esc([i.size, i.color].filter(Boolean).join(' · '))}</span></span><span>${money(i.unit_price_cents * i.qty)}</span></div>`).join('')}
+          <div class="r" style="margin-top:12px"><span>Subtotal</span><span>${money(o.subtotal_cents)}</span></div>
+          <div class="r"><span>Envío</span><span>${o.shipping_cents ? money(o.shipping_cents) : 'Gratis'}</span></div>
+          <div class="r total"><span>Total</span><span>${money(o.total_cents)}</span></div>
+        </div>
+        <div class="box">
+          <h2>Envío</h2>
+          <p>${esc(o.ship_name)}<br>${esc(o.ship_address)}<br>${esc(o.ship_postal_code)} ${esc(o.ship_city)}${o.ship_province ? ' (' + esc(o.ship_province) + ')' : ''}${o.ship_phone ? '<br>' + esc(o.ship_phone) : ''}</p>
+        </div>
+        <p><a href="/cuenta.html">← Mis pedidos</a></p>
+      </div>`;
+
+    if ($('#pp') && config.paypalClientId) paypalButtons(o.id, '#pp');
+  </script>
+</body>
+</html>

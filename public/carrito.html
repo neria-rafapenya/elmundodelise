@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Carrito · El mundo de Lise</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <div class="two-col">
+      <section>
+        <h1>Tu carrito</h1>
+        <div id="lines"><p class="muted">Cargando…</p></div>
+      </section>
+      <aside class="box summary hidden" id="summary"></aside>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, renderShell, cart, $, $$, esc, money } from '/js/app.js';
+    await renderShell();
+
+    async function render() {
+      const items = cart.get();
+      if (!items.length) {
+        $('#lines').innerHTML = '<p class="muted">Tu carrito está vacío.</p><p><a class="btn ghost" href="/">Ir a la tienda</a></p>';
+        $('#summary').classList.add('hidden');
+        return;
+      }
+      const q = await api('/cart/quote', { method: 'POST', body: { items } });
+      $('#lines').innerHTML = q.lines.map((l) => l.name ? `
+        <div class="line">
+          ${l.image ? `<img src="${esc(l.image)}" alt="">` : '<div class="noimg"></div>'}
+          <div>
+            <a href="/producto.html?p=${esc(l.slug)}"><strong>${esc(l.name)}</strong></a>
+            <div class="meta">${esc([l.size, l.color].filter(Boolean).join(' · '))} · ${money(l.unit_price_cents)}</div>
+            ${l.unavailable ? `<div class="error">Solo quedan ${l.stock} unidades</div>` : ''}
+            <div class="qty"><button data-d="-1" data-id="${l.variant_id}">−</button><span>${l.qty}</span><button data-d="1" data-id="${l.variant_id}" ${l.qty >= l.stock ? 'disabled' : ''}>+</button></div>
+            <button class="link-btn" data-rm="${l.variant_id}">Eliminar</button>
+          </div>
+          <strong>${money(l.line_cents)}</strong>
+        </div>` : `
+        <div class="line"><div class="noimg"></div><div class="error">Este artículo ya no está disponible</div>
+          <button class="link-btn" data-rm="${l.variant_id}">Quitar</button></div>`).join('');
+
+      const blocked = q.lines.some((l) => l.unavailable);
+      $('#summary').classList.remove('hidden');
+      $('#summary').innerHTML = `
+        <h2>Resumen</h2>
+        <div class="r"><span>Subtotal</span><span>${money(q.subtotal_cents)}</span></div>
+        <div class="r"><span>Envío</span><span>${q.shipping_cents ? money(q.shipping_cents) : 'Gratis'}</span></div>
+        <div class="r total"><span>Total</span><span>${money(q.total_cents)}</span></div>
+        ${blocked ? '<button class="btn block" style="margin-top:18px" disabled>Tramitar pedido</button>'
+                  : '<a class="btn block" style="margin-top:18px" href="/checkout.html">Tramitar pedido</a>'}
+        ${blocked ? '<p class="error" style="margin-top:10px">Ajusta las cantidades marcadas para continuar.</p>' : ''}`;
+
+      $$('[data-d]').forEach((b) => b.onclick = () => {
+        const it = cart.get().find((i) => i.variant_id === b.dataset.id);
+        cart.set(b.dataset.id, it.qty + Number(b.dataset.d)); render();
+      });
+      $$('[data-rm]').forEach((b) => b.onclick = () => { cart.remove(b.dataset.rm); render(); });
+    }
+    render().catch(() => $('#lines').innerHTML = '<p class="error">No se ha podido cargar el carrito.</p>');
+  </script>
+</body>
+</html>

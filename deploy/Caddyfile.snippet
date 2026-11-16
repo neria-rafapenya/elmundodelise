@@ -1,0 +1,9 @@
+# Sustituye el bloque de elmundodelise.com que ya tienes en /etc/caddy/Caddyfile por este:
+elmundodelise.com, www.elmundodelise.com {
+	encode gzip
+	handle_path /uploads/* {
+		root * /var/www/elmundodelise/uploads
+		file_server
+	}
+	reverse_proxy localhost:3002
+}

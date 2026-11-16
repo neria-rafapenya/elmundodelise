@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>El mundo de Lise · Tienda</title>
+  <meta name="description" content="Moda y complementos de El mundo de Lise.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>El mundo de Lise</h1>
+      <p>Prendas escogidas con cariño. Envío a toda España.</p>
+    </section>
+    <div class="filters" id="filters"></div>
+    <div class="grid" id="grid"><p class="muted center">Cargando…</p></div>
+  </main>
+
+  <script type="module">
+    import { api, renderShell, $, esc, money, params } from '/js/app.js';
+    await renderShell();
+
+    const current = params.get('cat') || '';
+    const cats = await api('/categories').catch(() => []);
+    $('#filters').innerHTML = [`<a class="chip ${!current ? 'active' : ''}" href="/">Todo</a>`]
+      .concat(cats.map((c) => `<a class="chip ${c.slug === current ? 'active' : ''}" href="/?cat=${esc(c.slug)}">${esc(c.name)}</a>`))
+      .join('');
+
+    try {
+      const products = await api('/products' + (current ? `?category=${encodeURIComponent(current)}` : ''));
+      $('#grid').innerHTML = products.length ? products.map((p) => `
+        <a class="card" href="/producto.html?p=${esc(p.slug)}">
+          <div class="ph">
+            ${p.images[0] ? `<img src="${esc(p.images[0].path)}" alt="${esc(p.name)}" loading="lazy">` : ''}
+            ${!p.in_stock ? '<span class="tag">Agotado</span>' : ''}
+          </div>
+          <h3>${esc(p.name)}</h3>
+          <div class="price">${money(p.price_cents)}</div>
+        </a>`).join('') : '<p class="muted center">Pronto habrá novedades aquí.</p>';
+    } catch (e) {
+      $('#grid').innerHTML = `<p class="error center">No se ha podido cargar el catálogo.</p>`;
+    }
+  </script>
+</body>
+</html>

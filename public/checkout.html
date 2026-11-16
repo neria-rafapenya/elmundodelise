@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finalizar compra · El mundo de Lise</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <div class="two-col">
+      <section class="stack">
+        <h1>Finalizar compra</h1>
+        <form id="form" class="box" novalidate>
+          <h2>Datos de envío</h2>
+          <div class="field"><label>Nombre y apellidos *</label><input name="name" required autocomplete="name"></div>
+          <div class="row">
+            <div class="field"><label>Teléfono</label><input name="phone" type="tel" autocomplete="tel"></div>
+            <div class="field"><label>Email</label><input id="email" disabled></div>
+          </div>
+          <div class="field"><label>Dirección *</label><input name="address" required autocomplete="street-address"></div>
+          <div class="row">
+            <div class="field"><label>Código postal *</label><input name="postal_code" required inputmode="numeric" maxlength="5" autocomplete="postal-code"></div>
+            <div class="field"><label>Población *</label><input name="city" required autocomplete="address-level2"></div>
+          </div>
+          <div class="field"><label>Provincia</label><input name="province" autocomplete="address-level1"></div>
+          <div class="field"><label>Notas para el pedido</label><textarea name="notes" rows="2"></textarea></div>
+          <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" name="save" checked style="width:auto"> Guardar estos datos en mi cuenta</label>
+
+          <h2 style="margin-top:26px">Pago</h2>
+          <label class="pay-opt" id="opt-paypal"><input type="radio" name="pay" value="paypal" checked> <span><strong>PayPal</strong> <span class="muted">· también tarjeta</span></span></label>
+          <label class="pay-opt" id="opt-bizum"><input type="radio" name="pay" value="bizum"> <span><strong>Bizum</strong> <span class="muted">· te damos el número y la referencia</span></span></label>
+          <p class="error" id="err"></p>
+          <button class="btn block" id="submit">Realizar pedido</button>
+        </form>
+        <div id="pay" class="box hidden"></div>
+      </section>
+      <aside class="box summary" id="summary"><p class="muted">Cargando…</p></aside>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, renderShell, requireLogin, cart, config, paypalButtons, $, esc, money } from '/js/app.js';
+    await renderShell();
+    const session = await requireLogin();
+    if (!session) throw 0;
+    if (!cart.count()) location.href = '/carrito.html';
+
+    if (!config.paypalClientId) { $('#opt-paypal').remove(); $('[value=bizum]').checked = true; }
+    if (!config.bizumPhone) $('#opt-bizum').remove();
+
+    const form = $('#form');
+    $('#email').value = session.user.email;
+    const me = await api('/me').catch(() => null);
+    const pr = me?.profile || {};
+    for (const [k, v] of Object.entries({ name: pr.full_name, phone: pr.phone, address: pr.address, postal_code: pr.postal_code, city: pr.city, province: pr.province })) {
+      if (v) form.elements[k].value = v;
+    }
+
+    const q = await api('/cart/quote', { method: 'POST', body: { items: cart.get() } });
+    $('#summary').innerHTML = `<h2>Tu pedido</h2>
+      ${q.lines.filter((l) => l.name).map((l) => `<div class="r"><span>${l.qty} × ${esc(l.name)} <span class="muted">${esc(l.size || '')}</span></span><span>${money(l.line_cents)}</span></div>`).join('')}
+      <div class="r" style="margin-top:14px"><span>Subtotal</span><span>${money(q.subtotal_cents)}</span></div>
+      <div class="r"><span>Envío</span><span>${q.shipping_cents ? money(q.shipping_cents) : 'Gratis'}</span></div>
+      <div class="r total"><span>Total</span><span>${money(q.total_cents)}</span></div>`;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#err').textContent = '';
+      const f = Object.fromEntries(new FormData(form));
+      if (!f.pay) return ($('#err').textContent = 'No hay ningún método de pago configurado.');
+      const btn = $('#submit'); btn.disabled = true; btn.textContent = 'Creando pedido…';
+      try {
+        if (f.save) await api('/me', { method: 'PUT', body: { full_name: f.name, phone: f.phone, address: f.address, postal_code: f.postal_code, city: f.city, province: f.province } });
+        const order = await api('/orders', { method: 'POST', body: {
+          items: cart.get(), payment_method: f.pay, notes: f.notes,
+          shipping: { name: f.name, phone: f.phone, address: f.address, postal_code: f.postal_code, city: f.city, province: f.province },
+        } });
+        cart.clear();
+        form.classList.add('hidden');
+        if (f.pay === 'bizum') location.href = `/pedido.html?id=${order.id}`;
+        else await payWithPaypal(order);
+      } catch (err) {
+        $('#err').textContent = err.message;
+        btn.disabled = false; btn.textContent = 'Realizar pedido';
+      }
+    });
+
+    async function payWithPaypal(order) {
+      $('#pay').classList.remove('hidden');
+      $('#pay').innerHTML = `<h2>Pedido nº ${order.number}</h2><p>Total: <strong>${money(order.total_cents)}</strong>. Completa el pago:</p><div id="pp"></div>
+        <p class="muted" style="font-size:.85rem">Si cierras esta página, podrás pagar más tarde desde <a href="/pedido.html?id=${order.id}">tu pedido</a>.</p>`;
+      await paypalButtons(order.id, '#pp');
+    }
+  </script>
+</body>
+</html>
