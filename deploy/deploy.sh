@@ -36,7 +36,7 @@ echo "→ Subiendo código"
 rsync -az --delete -e "ssh -p $SSH_PORT" \
   --exclude '.git' --exclude 'node_modules' --exclude 'uploads' --exclude '.env' --exclude '.DS_Store' \
   ./ "$TARGET:$APP_DIR/"
-rsync -az -e "ssh -p $SSH_PORT" --chmod=F600 .env "$TARGET:$APP_DIR/.env"
+scp -q -P "$SSH_PORT" .env "$TARGET:$APP_DIR/.env"   # remote-setup.sh le pone permisos 600
 
 echo "→ Configurando el servidor"
 "${SSH[@]}" -t "$TARGET" "APP_DIR=$APP_DIR DOMAIN=$DOMAIN DEPLOY_USER=$DEPLOY_USER bash $APP_DIR/deploy/remote-setup.sh"
