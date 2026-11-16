@@ -4,7 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom';
 import '../shared/styles.css';
 import { api } from '../shared/api.js';
-import { ToastProvider } from '../shared/toast.jsx';
+import { ToastProvider, useToast } from '../shared/toast.jsx';
+import usePendingOrders from './usePendingOrders.js';
 import Products from './pages/Products.jsx';
 import ProductEdit from './pages/ProductEdit.jsx';
 import Orders from './pages/Orders.jsx';
@@ -39,14 +40,15 @@ function AdminLogin({ onLogin }) {
   );
 }
 
-function App() {
-  const [user, setUser] = useState(undefined);
-  useEffect(() => { api('/session').then((s) => setUser(s.user?.is_admin ? s.user : null)).catch(() => setUser(null)); }, []);
+// Pestañas + aviso de pedidos en tiempo real
+function Backoffice({ user, onLogout }) {
+  const toast = useToast();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const pending = usePendingOrders((n) => {
+    toast(n === 1 ? '¡Nuevo pedido!' : `¡${n} pedidos nuevos!`);
+    setRefreshKey((k) => k + 1); // refresca el listado de pedidos si está abierto
+  });
 
-  if (user === undefined) return <p className="muted center" style={{ padding: 60 }}>Cargando…</p>;
-  if (!user) return <AdminLogin onLogin={setUser} />;
-
-  const logout = async () => { await api('/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); };
   return (
     <>
       <header className="site-header">
@@ -55,25 +57,39 @@ function App() {
           <nav>
             <a href="/" target="_blank" rel="noreferrer">Ver tienda ↗</a>
             <span className="muted" style={{ fontSize: '.85rem' }}>{user.email}</span>
-            <button className="btn small ghost" onClick={logout}>Salir</button>
+            <button className="btn small ghost" onClick={onLogout}>Salir</button>
           </nav>
         </div>
       </header>
       <main className="wrap" style={{ paddingTop: 24 }}>
         <div className="admin-tabs">
           <NavLink to="/" end>Prendas</NavLink>
-          <NavLink to="/pedidos">Pedidos</NavLink>
+          <NavLink to="/pedidos" className={({ isActive }) => `tab-with-badge ${isActive ? 'active' : ''}`}>
+            Pedidos
+            {pending > 0 && <span className="notif" title={`${pending} pedido(s) por atender`}>{pending > 99 ? '99+' : pending}</span>}
+          </NavLink>
           <NavLink to="/categorias">Categorías</NavLink>
         </div>
         <Routes>
           <Route path="/" element={<Products />} />
           <Route path="/prendas/:id" element={<ProductEdit />} />
-          <Route path="/pedidos" element={<Orders />} />
+          <Route path="/pedidos" element={<Orders refresh={refreshKey} />} />
           <Route path="/categorias" element={<Categories />} />
         </Routes>
       </main>
     </>
   );
+}
+
+function App() {
+  const [user, setUser] = useState(undefined);
+  useEffect(() => { api('/session').then((s) => setUser(s.user?.is_admin ? s.user : null)).catch(() => setUser(null)); }, []);
+
+  if (user === undefined) return <p className="muted center" style={{ padding: 60 }}>Cargando…</p>;
+  if (!user) return <AdminLogin onLogin={setUser} />;
+
+  const logout = async () => { await api('/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); };
+  return <Backoffice user={user} onLogout={logout} />;
 }
 
 createRoot(document.getElementById('root')).render(

@@ -508,6 +508,13 @@ adm.delete('/categories/:id', wrap(async (req, res) => {
 
 // Pedidos
 const STATUSES = ['pending_payment', 'pending_bizum', 'paid', 'preparing', 'shipped', 'delivered', 'cancelled'];
+
+// Pedidos por atender (aviso del backoffice): Bizum por confirmar o pagados sin preparar
+adm.get('/orders/pending-count', wrap(async (_req, res) => {
+  const r = await one(`select count(*)::int as count, max(created_at) as latest
+    from elise_orders where status in ('pending_bizum', 'paid')`);
+  res.json(r);
+}));
 adm.get('/orders', wrap(async (req, res) => {
   const filter = STATUSES.includes(req.query.status) ? req.query.status : null;
   res.json(await withItems(await q(`select o.*, u.email from elise_orders o join elise_users u on u.id = o.user_id

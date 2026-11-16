@@ -2,19 +2,21 @@ import { useEffect, useState } from 'react';
 import { api, money, STATUS } from '../../shared/api.js';
 import { useToast } from '../../shared/toast.jsx';
 
-export default function Orders() {
+export default function Orders({ refresh = 0 }) {
   const toast = useToast();
   const [filter, setFilter] = useState('');
   const [orders, setOrders] = useState(null);
 
   const load = () => api('/admin/orders' + (filter ? `?status=${filter}` : '')).then(setOrders).catch(() => setOrders([]));
   useEffect(() => { setOrders(null); load(); }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (refresh) load(); }, [refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function changeStatus(o, status) {
     if (status === 'paid' && !confirm(`¿Confirmas que has recibido el pago del pedido ${o.number}? Se descontará el stock.`)) return;
     try { await api(`/admin/orders/${o.id}`, { method: 'PATCH', body: { status } }); toast('Estado actualizado'); }
     catch (err) { toast(err.message, 'err'); }
     load();
+    window.dispatchEvent(new Event('elise:orders-changed')); // actualiza el aviso al momento
   }
   async function saveTracking(o, tracking) {
     if ((o.tracking || '') === tracking) return;
