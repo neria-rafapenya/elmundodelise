@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, money } from '../../shared/api.js';
+import ShareButtons from '../ShareButtons.jsx';
 
 export default function Home() {
   const [params] = useSearchParams();
@@ -40,6 +41,13 @@ export default function Home() {
             <div className="price">{money(p.price_cents)}</div>
           </Link>
         ))}
+      </div>
+      <div className="center" style={{ marginTop: 48 }}>
+        <ShareButtons
+          title={`${current ? `${cats.find((c) => c.slug === current)?.name || ''} · ` : ''}El Mundo de Élise`}
+          text="Mira la tienda El Mundo de Élise"
+          label={current ? 'Compartir esta categoría' : 'Compartir la tienda'}
+        />
       </div>
     </div>
   );

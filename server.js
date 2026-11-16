@@ -5,6 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
 import pg from 'pg';
+import sharp from 'sharp';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -395,6 +396,27 @@ adm.use(admin);
 
 adm.get('/products', wrap(async (_req, res) => res.json(await loadProducts())));
 
+// Tallas y colores permitidos (el backoffice usa estas listas en sus selectores)
+const SIZES = ['S', 'M', 'L', 'XL'];
+const COLORS = ['Blanco', 'Negro', 'Blanco roto'];
+adm.get('/options', (_req, res) => res.json({ sizes: SIZES, colors: COLORS }));
+
+// Valida talla y color. En una variante existente se acepta el valor que ya tenía
+// (datos antiguos), para poder cambiar el stock sin perderlo.
+function variantFields(b, current = null) {
+  const size = clean(b.size), color = clean(b.color);
+  if (!size || !color) throw new HttpError(400, 'Cada variante necesita talla y color');
+  if (!SIZES.includes(size) && size !== current?.size) throw new HttpError(400, `Talla no válida. Usa: ${SIZES.join(', ')}`);
+  if (!COLORS.includes(color) && color !== current?.color) throw new HttpError(400, `Color no válido. Usa: ${COLORS.join(', ')}`);
+  return { size, color, stock: Math.max(0, parseInt(b.stock, 10) || 0) };
+}
+
+async function assertNoDuplicate(productId, size, color, exceptId = null, client = pool) {
+  const { rows } = await client.query(`select 1 from elise_product_variants
+    where product_id = $1 and size = $2 and color = $3 and id is distinct from $4`, [productId, size, color, exceptId]);
+  if (rows.length) throw new HttpError(409, `Ya existe la combinación ${size} · ${color} en esta prenda`);
+}
+
 function productFields(b, isNew) {
   const name = clean(b.name);
   if (isNew || b.name !== undefined) { if (!name) throw new HttpError(400, 'El nombre es obligatorio'); }
@@ -413,12 +435,25 @@ async function uniqueSlug(name, exceptId = null) {
 
 adm.post('/products', wrap(async (req, res) => {
   const f = productFields(req.body || {}, true);
-  res.status(201).json(await one(`insert into elise_products (name, slug, price_cents, description, category_id, active)
-    values ($1,$2,$3,$4,$5,$6) returning *`, [f.name, await uniqueSlug(f.name), f.price_cents, f.description, f.category_id, f.active]));
+  const v = variantFields(req.body?.variant || {});
+  const slug = await uniqueSlug(f.name);
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const { rows: [p] } = await client.query(`insert into elise_products (name, slug, price_cents, description, category_id, active)
+      values ($1,$2,$3,$4,$5,$6) returning *`, [f.name, slug, f.price_cents, f.description, f.category_id, f.active]);
+    await client.query('insert into elise_product_variants (product_id, size, color, stock) values ($1,$2,$3,$4)', [p.id, v.size, v.color, v.stock]);
+    await client.query('commit');
+    res.status(201).json(p);
+  } catch (e) { await client.query('rollback'); throw e; } finally { client.release(); }
 }));
 
 adm.put('/products/:id', wrap(async (req, res) => {
   const f = productFields(req.body || {}, true);
+  if (f.active) {
+    const { n } = await one('select count(*)::int as n from elise_product_variants where product_id = $1', [req.params.id]);
+    if (!n) throw new HttpError(400, 'Añade al menos una talla y color antes de hacerla visible');
+  }
   const p = await one(`update elise_products set name = $1, slug = $2, price_cents = $3, description = $4, category_id = $5, active = $6, updated_at = now()
     where id = $7 returning *`, [f.name, await uniqueSlug(f.name, req.params.id), f.price_cents, f.description, f.category_id, f.active, req.params.id]);
   if (!p) throw new HttpError(404, 'Prenda no encontrada');
@@ -434,32 +469,57 @@ adm.delete('/products/:id', wrap(async (req, res) => {
 
 // Variantes (talla / color / stock)
 adm.post('/products/:id/variants', wrap(async (req, res) => {
-  const b = req.body || {};
+  const v = variantFields(req.body || {});
+  await assertNoDuplicate(req.params.id, v.size, v.color);
   res.status(201).json(await one(`insert into elise_product_variants (product_id, size, color, sku, stock) values ($1,$2,$3,$4,$5) returning *`,
-    [req.params.id, clean(b.size), clean(b.color), clean(b.sku), Math.max(0, parseInt(b.stock, 10) || 0)]));
+    [req.params.id, v.size, v.color, clean(req.body?.sku), v.stock]));
 }));
 
 adm.put('/variants/:id', wrap(async (req, res) => {
-  const b = req.body || {};
+  const cur = await one('select * from elise_product_variants where id = $1', [req.params.id]);
+  if (!cur) throw new HttpError(404, 'Variante no encontrada');
+  const v = variantFields(req.body || {}, cur);
+  await assertNoDuplicate(cur.product_id, v.size, v.color, cur.id);
   res.json(await one(`update elise_product_variants set size = $1, color = $2, stock = $3 where id = $4 returning *`,
-    [clean(b.size), clean(b.color), Math.max(0, parseInt(b.stock, 10) || 0), req.params.id]));
+    [v.size, v.color, v.stock, req.params.id]));
 }));
 
 adm.delete('/variants/:id', wrap(async (req, res) => {
+  const cur = await one('select product_id from elise_product_variants where id = $1', [req.params.id]);
+  if (!cur) return res.json({ ok: true });
+  const { n } = await one('select count(*)::int as n from elise_product_variants where product_id = $1', [cur.product_id]);
+  if (n <= 1) throw new HttpError(409, 'Una prenda necesita al menos una talla y color. Añade otra antes de borrar esta.');
   await q('delete from elise_product_variants where id = $1', [req.params.id]);
   res.json({ ok: true });
 }));
 
 // Imágenes → disco del hosting
+// Fotos: se reciben en memoria y se optimizan antes de guardarlas en disco
+const MAX_PHOTO_BYTES = 1024 * 1024; // resultado final: menos de 1 MB
+const MAX_SIDE = 1600;               // px del lado más largo
+const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/heic', 'image/heif'];
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: PRODUCTS_DIR,
-    filename: (_req, file, cb) => cb(null, crypto.randomUUID() + ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[file.mimetype])),
-  }),
-  limits: { fileSize: 8 * 1024 * 1024, files: 10 },
-  fileFilter: (_req, file, cb) => (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)
-    ? cb(null, true) : cb(new HttpError(400, 'Solo imágenes JPG, PNG o WEBP'))),
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 40 * 1024 * 1024, files: 10 }, // original de hasta 40 MB
+  fileFilter: (_req, file, cb) => (ACCEPTED.includes(file.mimetype) || /\.(heic|heif)$/i.test(file.originalname)
+    ? cb(null, true) : cb(new HttpError(400, 'Solo imágenes JPG, PNG, WEBP o HEIC'))),
 });
+
+// Redimensiona, corrige la orientación, quita metadatos (GPS…) y comprime a JPEG < 1 MB
+async function optimizePhoto(buffer) {
+  let side = MAX_SIDE, quality = 82, out;
+  for (let i = 0; i < 12; i++) {
+    out = await sharp(buffer, { failOn: 'none' })
+      .rotate()
+      .resize({ width: side, height: side, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality, mozjpeg: true, progressive: true })
+      .toBuffer();
+    if (out.length <= MAX_PHOTO_BYTES) return out;
+    if (quality > 60) quality -= 8; else side = Math.round(side * 0.85);
+  }
+  return out;
+}
 
 function removeFile(publicPath) {
   if (!publicPath?.startsWith('/uploads/')) return;
@@ -470,16 +530,30 @@ function removeFile(publicPath) {
 adm.post('/products/:id/images', upload.array('images', 10), wrap(async (req, res) => {
   const files = req.files || [];
   if (!files.length) throw new HttpError(400, 'No se ha recibido ninguna imagen');
+  if (!(await one('select 1 from elise_products where id = $1', [req.params.id]))) throw new HttpError(404, 'Prenda no encontrada');
+
+  // 1) Optimizar todas antes de tocar nada
+  const saved = [];
   try {
+    for (const f of files) {
+      let jpg;
+      try { jpg = await optimizePhoto(f.buffer); } catch {
+        throw new HttpError(400, `No se ha podido procesar «${f.originalname}». Si es una foto HEIC de iPhone, súbela en JPG (Ajustes → Cámara → Formatos → Más compatible).`);
+      }
+      const name = `${crypto.randomUUID()}.jpg`;
+      await fs.promises.writeFile(path.join(PRODUCTS_DIR, name), jpg, { mode: 0o644 });
+      saved.push({ path: `/uploads/products/${name}`, original: f.size, size: jpg.length });
+    }
+    // 2) Registrar en la base de datos
     const { max } = await one('select coalesce(max(sort), -1) as max from elise_product_images where product_id = $1', [req.params.id]);
     const out = [];
-    for (const [i, f] of files.entries()) {
-      out.push(await one('insert into elise_product_images (product_id, path, sort) values ($1,$2,$3) returning *',
-        [req.params.id, `/uploads/products/${f.filename}`, max + 1 + i]));
+    for (const [i, f] of saved.entries()) {
+      const row = await one('insert into elise_product_images (product_id, path, sort) values ($1,$2,$3) returning *', [req.params.id, f.path, max + 1 + i]);
+      out.push({ ...row, original_bytes: f.original, optimized_bytes: f.size });
     }
     res.status(201).json(out);
   } catch (e) {
-    files.forEach((f) => removeFile(`/uploads/products/${f.filename}`));
+    saved.forEach((f) => removeFile(f.path));
     throw e;
   }
 }));
@@ -538,6 +612,40 @@ app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Ruta no encontrad
 
 // Frontend React (web/dist). En producción lo sirve Caddy; esto es por si se usa Node solo.
 const DIST = path.join(__dirname, 'web', 'dist');
+const escAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Ficha de producto con vista previa para redes (WhatsApp, Facebook, X, Pinterest…).
+// Los rastreadores no ejecutan React, así que el servidor pone título, foto y precio en el HTML.
+// Solo lee la base de datos.
+app.get('/producto/:slug', wrap(async (req, res, next) => {
+  const indexFile = path.join(DIST, 'index.html');
+  if (!fs.existsSync(indexFile)) return next();
+  let html = fs.readFileSync(indexFile, 'utf8');
+  const [p] = await loadProducts('active and slug = $1', [req.params.slug]);
+  if (p) {
+    const price = (p.price_cents / 100).toLocaleString('es-ES', { style: 'currency', currency: CURRENCY });
+    const title = `${p.name} · El Mundo de Élise`;
+    const desc = (p.description || `${p.name} en El Mundo de Élise`).replace(/\s+/g, ' ').slice(0, 180) + ` · ${price}`;
+    const url = `${PUBLIC_URL}/producto/${p.slug}`;
+    const image = p.images[0] ? `${PUBLIC_URL}${p.images[0].path}` : `${PUBLIC_URL}/icon-512.png`;
+    const set = (prop, val) => {
+      const re = new RegExp(`<meta (property|name)="${prop}" content="[^"]*">`);
+      const tag = `<meta ${/^(og|product):/.test(prop) ? 'property' : 'name'}="${prop}" content="${escAttr(val)}">`;
+      html = re.test(html) ? html.replace(re, tag) : html.replace('</head>', `  ${tag}\n</head>`);
+    };
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${escAttr(title)}</title>`);
+    set('description', desc);
+    set('og:type', 'product');
+    set('og:title', title);
+    set('og:description', desc);
+    set('og:image', image);
+    set('og:url', url);
+    set('product:price:amount', (p.price_cents / 100).toFixed(2));
+    set('product:price:currency', CURRENCY);
+  }
+  res.set('Cache-Control', 'no-cache').type('html').send(html);
+}));
+
 if (fs.existsSync(DIST)) {
   app.use(express.static(DIST, { index: false, maxAge: '1h' }));
   app.get(/^\/admin(\/.*)?$/, (_req, res) => res.sendFile(path.join(DIST, 'admin', 'index.html')));

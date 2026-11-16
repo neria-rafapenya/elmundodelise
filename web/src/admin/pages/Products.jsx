@@ -25,7 +25,12 @@ export default function Products() {
               <td><strong>{p.name}</strong><div className="muted" style={{ fontSize: '.8rem' }}>{cats.find((c) => c.id === p.category_id)?.name || 'Sin categoría'}</div></td>
               <td>{money(p.price_cents)}</td>
               <td>{p.variants.reduce((s, v) => s + v.stock, 0)} <span className="muted">({p.variants.length} tallas)</span></td>
-              <td>{p.active ? <span className="status paid">Visible</span> : <span className="status">Oculta</span>}</td>
+              <td>
+                {p.active ? <span className="status paid">Visible</span> : <span className="status">Oculta</span>}
+                {(!p.variants.length || p.variants.some((v) => !v.size || !v.color)) && (
+                  <div><span className="status pending_bizum" style={{ marginTop: 4 }}>Falta talla o color</span></div>
+                )}
+              </td>
               <td><Link className="btn small ghost" to={`/prendas/${p.id}`}>Editar</Link></td>
             </tr>
           ))}

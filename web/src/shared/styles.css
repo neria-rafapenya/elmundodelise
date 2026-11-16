@@ -164,3 +164,34 @@ nav a.active { color: var(--accent); }
 .tab-with-badge { position: relative; display: inline-flex; align-items: center; gap: 8px; }
 .notif { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: #d93025; color: #fff; font-size: .72rem; font-weight: 700; display: inline-grid; place-items: center; line-height: 1; box-shadow: 0 0 0 2px var(--bg); animation: notif-pop .35s ease-out; }
 @keyframes notif-pop { 0% { transform: scale(.4); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+
+/* Compartir */
+.share { margin-top: 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.center .share { justify-content: center; }
+.share-label { font-size: .85rem; color: var(--muted); }
+.share-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.share-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: inline-grid; place-items: center; cursor: pointer; text-decoration: none; transition: all .15s; padding: 0; }
+.share-btn:hover { color: #fff; border-color: transparent; background: var(--accent); }
+.share-btn.whatsapp:hover { background: #25d366; }
+.share-btn.facebook:hover { background: #1877f2; }
+.share-btn.x:hover { background: #000; }
+.share-btn.pinterest:hover { background: #e60023; }
+.share-btn.telegram:hover { background: #229ed9; }
+
+/* Tallas y colores (backoffice) */
+.first-variant { border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px 14px; margin: 6px 0 16px; }
+.first-variant legend { font-size: .85rem; color: var(--ink); padding: 0 6px; }
+.row3 { display: grid; grid-template-columns: 1fr 1.3fr .8fr; gap: 10px; }
+tr.row-warn td { background: #fdf3e6; }
+tr.row-new td { background: #faf7f4; }
+td select { padding: 6px 8px; min-width: 90px; }
+td:nth-child(2) select { min-width: 130px; }
+.link-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Colores en la ficha */
+.color-opt { display: inline-flex; align-items: center; gap: 8px; }
+.swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #cfc6bf; display: inline-block; background: #ddd; }
+.sw-blanco { background: #fff; }
+.sw-negro { background: #1d1b1a; border-color: #1d1b1a; }
+.sw-blanco-roto { background: #f1ebdd; }
+.size.active .swatch { border-color: #fff; box-shadow: 0 0 0 1px #fff; }

@@ -24,7 +24,12 @@ function Header() {
           <NavLink to="/" end>Tienda</NavLink>
           <NavLink to={user ? '/cuenta' : '/entrar'}>{user ? 'Mi cuenta' : 'Entrar'}</NavLink>
           <Link to="/carrito" className="cart-link" aria-label="Carrito">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 7h12l-1 13H7L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+              <path d="M2 3.5h2.2c.5 0 .9.3 1 .8L8.4 16.6h10.4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              <path fillRule="evenodd" fill="currentColor" d="M5.9 6.2h15.2c.7 0 1.2.7 1 1.4l-1.8 5.6c-.2.5-.6.8-1.1.8H8.3ZM11.3 8.6a.75.75 0 0 0-1.5 0v2.6a.75.75 0 0 0 1.5 0Zm3.9 0a.75.75 0 0 0-1.5 0v2.6a.75.75 0 0 0 1.5 0Z" />
+              <circle cx="9.6" cy="20" r="1.7" fill="currentColor" />
+              <circle cx="17.4" cy="20" r="1.7" fill="currentColor" />
+            </svg>
             {cart.count > 0 && <span className="badge">{cart.count}</span>}
           </Link>
         </nav>

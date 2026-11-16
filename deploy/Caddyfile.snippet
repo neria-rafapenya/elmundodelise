@@ -4,6 +4,9 @@ elmundodelise.com, www.elmundodelise.com {
 	handle /api/* {
 		reverse_proxy localhost:3002
 	}
+	handle /producto/* {
+		reverse_proxy localhost:3002
+	}
 	handle_path /uploads/* {
 		root * /var/www/elmundodelise/uploads
 		file_server

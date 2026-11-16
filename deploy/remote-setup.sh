@@ -92,6 +92,9 @@ sys.stdout.write("".join(out).rstrip() + f"""
 	handle /api/* {{
 		reverse_proxy localhost:{port}
 	}}
+	handle /producto/* {{
+		reverse_proxy localhost:{port}
+	}}
 	handle_path /uploads/* {{
 		root * {app}/uploads
 		file_server
