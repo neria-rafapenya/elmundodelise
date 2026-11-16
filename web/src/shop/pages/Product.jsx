@@ -63,6 +63,7 @@ export default function Product() {
           <p className="muted"><Link to="/">Tienda</Link></p>
           <h1>{p.name}</h1>
           <div className="price">{money(p.price_cents)}</div>
+          {p.description && <div className="desc">{p.description}</div>}
           {p.variants.length ? (
             <>
               {(colors.length > 1 || colors[0]) && (
@@ -94,7 +95,6 @@ export default function Product() {
               {v && v.stock <= 3 && <p className="muted" style={{ fontSize: '.85rem', marginTop: 8 }}>¡Solo quedan {v.stock}!</p>}
             </>
           ) : <p className="muted">Este producto todavía no tiene tallas disponibles.</p>}
-          {p.description && <div className="desc">{p.description}</div>}
           <ShareButtons title={`${p.name} · El Mundo de Élise`} text={`${p.name} (${money(p.price_cents)}) en El Mundo de Élise`} image={p.images[0]?.path} />
         </div>
       </div>

@@ -68,7 +68,7 @@ nav a:hover { color: var(--accent); }
 .size { min-width: 52px; padding: 9px 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; cursor: pointer; font-size: .9rem; }
 .size.active { border-color: var(--ink); background: var(--ink); color: #fff; }
 .size:disabled { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
-.desc { white-space: pre-line; color: #4b423f; margin-top: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; line-height: 1.65; box-shadow: 0 1px 2px rgba(43, 37, 35, .04); }
+.desc { white-space: pre-line; color: #4b423f; margin: 0 0 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; line-height: 1.65; box-shadow: 0 1px 2px rgba(43, 37, 35, .04); }
 
 /* Formularios y botones */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 22px; border-radius: 99px; border: 1px solid var(--ink); background: var(--ink); color: #fff; font-size: .95rem; cursor: pointer; text-decoration: none; font-family: inherit; }
