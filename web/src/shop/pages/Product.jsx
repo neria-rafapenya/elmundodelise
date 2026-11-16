@@ -91,7 +91,7 @@ export default function Product() {
                   );
                 })}
               </div>
-              <button className="btn block" onClick={add} disabled={!p.in_stock}>{p.in_stock ? 'Añadir al carrito' : 'Agotado'}</button>
+              <button className="btn block" onClick={add} disabled={!p.in_stock}>{p.in_stock ? 'Comprar' : 'Agotado'}</button>
               {v && v.stock <= 3 && <p className="muted" style={{ fontSize: '.85rem', marginTop: 8 }}>¡Solo quedan {v.stock}!</p>}
             </>
           ) : <p className="muted">Este producto todavía no tiene tallas disponibles.</p>}

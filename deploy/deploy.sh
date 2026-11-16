@@ -28,8 +28,9 @@ val() { grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*//'
 [ -n "$(val BIZUM_PHONE)" ] || echo "! BIZUM_PHONE vacío: no se ofrecerá Bizum"
 [ -n "$(val PAYPAL_CLIENT_ID)" ] || echo "! PAYPAL_CLIENT_ID vacío: no se ofrecerá PayPal"
 
-echo "→ Preparando $APP_DIR en $TARGET (puede pedirte la contraseña de sudo)"
-"${SSH[@]}" -t "$TARGET" "sudo mkdir -p $APP_DIR/uploads/products && sudo chown -R $DEPLOY_USER: $APP_DIR && sudo chmod 755 $APP_DIR"
+echo "→ Preparando $APP_DIR en $TARGET"
+# Solo pide sudo la primera vez (si la carpeta aún no es del usuario de despliegue)
+"${SSH[@]}" -t "$TARGET" "if [ -w $APP_DIR ] && [ -w $APP_DIR/uploads ]; then mkdir -p $APP_DIR/uploads/products; else sudo mkdir -p $APP_DIR/uploads/products && sudo chown -R $DEPLOY_USER: $APP_DIR && sudo chmod 755 $APP_DIR; fi"
 
 echo "→ Subiendo código"
 # --delete no toca lo excluido: uploads/ (fotos) y .env del servidor se conservan

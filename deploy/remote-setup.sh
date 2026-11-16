@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Se ejecuta EN EL VPS (lo lanza deploy.sh). Usa sudo solo para lo que lo necesita.
+# Se ejecuta EN EL VPS (lo lanza deploy.sh).
+# Solo usa sudo cuando algo cambia (servicio, Caddy, paquetes). En un despliegue normal
+# basta con «sudo systemctl restart elmundodelise», que se puede permitir sin contraseña
+# (ver deploy/sudoers-elmundodelise).
 set -euo pipefail
 : "${APP_DIR:?}" "${DOMAIN:?}" "${DEPLOY_USER:?}"
 cd "$APP_DIR"
@@ -36,7 +39,15 @@ psql "$DBURL" -v ON_ERROR_STOP=1 -q -f sql/schema.sql
 
 # Servicio systemd (corre con el usuario de despliegue)
 NODE_BIN=$(command -v node)
-sudo tee /etc/systemd/system/elmundodelise.service >/dev/null <<UNIT
+UNIT_TMP=$(mktemp)
+cat > "$UNIT_TMP" <<UNIT
+UNIT_CHANGED=0
+if ! cmp -s "$UNIT_TMP" /etc/systemd/system/elmundodelise.service; then
+  echo "  · Actualizando el servicio (pide sudo)"
+  sudo cp "$UNIT_TMP" /etc/systemd/system/elmundodelise.service
+  UNIT_CHANGED=1
+fi
+rm -f "$UNIT_TMP"
 [Unit]
 Description=Tienda El Mundo de Élise
 After=network.target
@@ -56,24 +67,25 @@ RestartSec=3
 WantedBy=multi-user.target
 UNIT
 
-if ! sudo systemctl is-active --quiet elmundodelise && ss -ltn "( sport = :$PORT )" | grep -q LISTEN; then
+if ! systemctl is-active --quiet elmundodelise && ss -ltn "( sport = :$PORT )" | grep -q LISTEN; then
   echo "✗ El puerto $PORT está ocupado por otra app. Cambia PORT en .env y vuelve a desplegar."; exit 1
 fi
-sudo systemctl daemon-reload
-sudo systemctl enable elmundodelise >/dev/null 2>&1
+if [ "$UNIT_CHANGED" = 1 ]; then
+  sudo systemctl daemon-reload
+  sudo systemctl enable elmundodelise >/dev/null 2>&1
+fi
 sudo systemctl restart elmundodelise
 sleep 2
 if ! curl -fsS "http://127.0.0.1:$PORT/api/config" >/dev/null; then
-  sudo journalctl -u elmundodelise -n 40 --no-pager; exit 1
+  sudo -n journalctl -u elmundodelise -n 40 --no-pager 2>/dev/null || echo "  (ver: sudo journalctl -u elmundodelise -n 40)"; exit 1
 fi
 echo "  · App respondiendo en el puerto $PORT"
 
 # Caddy: sustituye el bloque de elmundodelise.com (copia de seguridad antes)
 CF=/etc/caddy/Caddyfile
 BAK="$CF.bak.$(date +%Y%m%d%H%M%S)"
-sudo cp "$CF" "$BAK"
 TMP=$(mktemp)
-sudo cat "$CF" | python3 -c '
+{ cat "$CF" 2>/dev/null || sudo cat "$CF"; } | python3 -c '
 import re, sys
 domain, port, app = sys.argv[1], sys.argv[2], sys.argv[3]
 out, skip, depth = [], False, 0
@@ -111,9 +123,16 @@ sys.stdout.write("".join(out).rstrip() + f"""
 	}}
 }}
 """)' "$DOMAIN" "$PORT" "$APP_DIR" > "$TMP"
-sudo cp "$TMP" "$CF"; rm -f "$TMP"
-if sudo caddy validate --config "$CF" >/dev/null 2>&1; then
-  sudo systemctl reload caddy && echo "  · Caddy actualizado (HTTPS automático)"
+if { cat "$CF" 2>/dev/null || sudo cat "$CF"; } | cmp -s - "$TMP"; then
+  echo "  · Caddy sin cambios"
+  rm -f "$TMP"
 else
-  echo "✗ Caddyfile no válido, restaurando la copia"; sudo cp "$BAK" "$CF"; exit 1
+  echo "  · Actualizando Caddy (pide sudo)"
+  sudo cp "$CF" "$BAK"
+  sudo cp "$TMP" "$CF"; rm -f "$TMP"
+  if sudo caddy validate --config "$CF" >/dev/null 2>&1; then
+    sudo systemctl reload caddy && echo "  · Caddy actualizado (HTTPS automático)"
+  else
+    echo "✗ Caddyfile no válido, restaurando la copia"; sudo cp "$BAK" "$CF"; exit 1
+  fi
 fi

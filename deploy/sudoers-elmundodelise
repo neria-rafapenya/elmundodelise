@@ -1,0 +1,4 @@
+# Permite al usuario de despliegue reiniciar la tienda sin contraseña (y nada más).
+# Instalar una sola vez, como root:
+#   install -m 440 deploy/sudoers-elmundodelise /etc/sudoers.d/elmundodelise && visudo -c
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart elmundodelise
